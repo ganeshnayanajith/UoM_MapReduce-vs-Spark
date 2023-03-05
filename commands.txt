@@ -1,0 +1,87 @@
+chmod 400 labsuser.pem
+ssh -i labsuser.pem hadoop@ec2-3-87-26-71.compute-1.amazonaws.com
+
+sudo chown hadoop -R /var/log/hive
+mkdir /var/log/hive/user/hadoop
+
+aws s3 ls /
+
+CREATE TABLE delay_flights (
+  MyUnknownColumn int,
+  Year int,
+  Month int,
+  DayofMonth int,
+  DayOfWeek int,
+  DepTime int,
+  CRSDepTime int,
+  ArrTime int,
+  CRSArrTime int,
+  UniqueCarrier string,
+  FlightNum int,
+  TailNum string,
+  ActualElapsedTime int,
+  CRSElapsedTime int,
+  AirTime int,
+  ArrDelay int,
+  DepDelay int,
+  Origin string,
+  Dest string,
+  Distance int,
+  TaxiIn int,
+  TaxiOut int,
+  Cancelled int,
+  CancellationCode string,
+  Diverted int,
+  CarrierDelay string,
+  WeatherDelay string,
+  NASDelay string,
+  SecurityDelay string,
+  LateAircraftDelay string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS
+INPUTFORMAT
+  'com.amazonaws.emr.s3select.hive.S3SelectableTextInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION 's3://video-presentation-bucket/DelayedFlights-updated'
+TBLPROPERTIES (
+  "s3select.format" = "csv",
+  "s3select.headerInfo" = "ignore"
+);
+
+
+set hive.msck.path.validation=ignore;
+MSCK REPAIR TABLE delay_flights;
+
+
+SELECT Year, avg((CarrierDelay /ArrDelay)*100) from delay_flights GROUP BY Year;
+SELECT Year, avg((WeatherDelay /ArrDelay)*100) from delay_flights GROUP BY Year;
+SELECT Year, avg((NASDelay /ArrDelay)*100) from delay_flights GROUP BY Year;
+SELECT Year, avg((SecurityDelay /ArrDelay)*100) from delay_flights GROUP BY Year;
+SELECT Year, avg((LateAircraftDelay /ArrDelay)*100) from delay_flights GROUP BY Year;
+
+spark-shell
+val df = spark.read.format("csv").option("inferSchema", "true").option("header","true").load("s3://video-presentation-bucket/DelayedFlights-updated.csv")
+df show()
+df.createOrReplaceTempView("delay_flights");
+spark.time(spark.sql("SELECT Year, avg((CarrierDelay /ArrDelay)*100) from delay_flights WHERE Year>=2003 AND Year<=2010 GROUP BY Year ORDER BY Year").show())
+spark.time(spark.sql("SELECT Year, avg((WeatherDelay /ArrDelay)*100) from delay_flights WHERE Year>=2003 AND Year<=2010 GROUP BY Year ORDER BY Year").show())
+spark.time(spark.sql("SELECT Year, avg((NASDelay /ArrDelay)*100) from delay_flights WHERE Year>=2003 AND Year<=2010 GROUP BY Year ORDER BY Year").show())
+spark.time(spark.sql("SELECT Year, avg((SecurityDelay /ArrDelay)*100) from delay_flights WHERE Year>=2003 AND Year<=2010 GROUP BY Year ORDER BY Year").show())
+spark.time(spark.sql("SELECT Year, avg((LateAircraftDelay /ArrDelay)*100) from delay_flights WHERE Year>=2003 AND Year<=2010 GROUP BY Year ORDER BY Year").show())
+
+
+14.957 seconds
+6.356 seconds
+6.602 seconds
+6.306 seconds
+6.936 seconds
+
+
+6.278 seconds
+2.133 seconds
+1.338 seconds
+1.251 seconds
+1.117 seconds
+
